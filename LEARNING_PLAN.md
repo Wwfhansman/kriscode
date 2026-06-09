@@ -123,21 +123,22 @@ agent 会自己思考 → 调用工具列目录、读文件 → 观察结果 →
 **大目标**：agent 自己决定调用 `read_file` 工具读文件，再基于内容回答。
 
 **第一组：让模型按格式说话**
-- [ ] 3.1 在 DeepSeek 网页版手工调教一个 ReAct prompt，让它输出 `Thought:` / `Action:` / `Final Answer:` 格式（学：ReAct prompt 设计，先不写代码）
-- [ ] 3.2 把这个 prompt 写成 Go 里的 system prompt 常量，发一次看模型是否照格式回（学：多行字符串、验证格式遵守）
+- [x] 3.1 网页版手工调教 ReAct prompt，验证格式遵守（2026-06-09，模型会自主判断要不要用工具、且不脑补 Observation）
+- [x] 3.2 把 prompt 写成 Go const（反引号多行字符串），验证模型在复杂任务输出 Action（2026-06-09，发现"简单任务模型会脱离格式"=软约束不可靠）
 
 **第二组：解析模型想干嘛**
-- [ ] 3.3 写个函数：输入模型回复文本，用 `strings.Contains` 判断它是 Action 还是 Final Answer（学：strings 包、字符串判断）
-- [ ] 3.4 如果是 Action，用 `strings` 把工具名和参数切出来（学：`TrimPrefix`/`Split`、字符串切割）
+- [x] 3.3 用 `strings.Contains` 判断 Action 还是 Final Answer（2026-06-09，if-else 分叉，无论模型规不规范都能分类）
+- [x] 3.4 parseAction 函数：Split 按行 + HasPrefix + TrimPrefix + TrimSpace 切出工具名和参数（2026-06-09，学 range 遍历；埋点：HasPrefix 前缀包含陷阱）
 
 **第三组：第一个工具 + 接上循环**
-- [ ] 3.5 写 `readFile(path) (string, error)` 工具，用 `os.ReadFile`（学：文件读取）
-- [ ] 3.6 把结果包成 `Observation: ...` 追加进 messages，再发给模型续一轮（学：Observation 回灌——驱动循环的关键）
-- [ ] 3.7 用 `for` 把「思考→解析→执行→回灌」串成循环，出现 Final Answer 就停（学：循环控制、终止条件）
-- [ ] 3.8 加最大轮数保护（如 10 轮强制停）（学：防失控）
+- [x] 3.5 写 `readFile(path) (string, error)` 工具，用 `os.ReadFile`（2026-06-09，独立写出，同 chat 模式）
+- [x] 3.6 把结果包成 `Observation: ...` 追加进 messages 回灌（2026-06-09，回灌成功；踩坑：Choices[0] 越界 panic→加 len 防御+fmt.Errorf 带原始 body；发现 DeepSeek 对文本ReAct 的 tool_call_id 校验=阶段5动机；手动测试要勤重启避免历史污染）
+- [x] 3.7 用内层 `for` 把「思考→解析→执行→回灌」串成自动循环，Final Answer 就 break（2026-06-09，🎉 ReAct 闭环跑通，无需人工"继续"）
+- [x] 3.8 最大轮数保护（写法B：`for round:=0; round<10; round++`）（2026-06-09，给 agent 装刹车防死循环烧钱）
 
-**阶段验收**：完整跑通一次"模型自主读文件并回答"；能画出 ReAct 循环流程图并解释每一步。
-**Agent 原理收获**：这是整个项目的灵魂——ReAct 三件套、Observation 回灌、停止条件、stop 参数防伪造。
+**阶段验收**：✅ 完整跑通"agent 自主读文件并回答"，自主判断要不要用工具。
+**Agent 原理收获**：ReAct 三件套、Observation 必须由程序提供（不能让模型脑补）、模型决策vs程序执行、双层循环、最大轮数保护、文本约定=软约束（不可靠→阶段5动机）。
+**🏁 阶段 3 完成于 2026-06-09。整个项目的灵魂阶段。**
 
 ---
 
@@ -185,6 +186,8 @@ agent 会自己思考 → 调用工具列目录、读文件 → 观察结果 →
 | 2026-06-08 | 🎉 阶段 1 第二组完成：用自己写的 Go 程序首次调通 DeepSeek！net/http 全链路 | 踩坑：.env≠环境变量、base_url、忘import io、漏检查err、defer位置 |
 | 2026-06-08 | 🏁 阶段 1 完成：封装 chat() 函数，已写 Obsidian 笔记 api调用.md | |
 | 2026-06-08 | 🏁 阶段 2 完成：for循环+append实现多轮记忆，REPL 能连续聊天 | 高光：模型答出"根据之前的对话"；理解记忆在应用层 |
+| 2026-06-08 | 推送 GitHub：Wwfhansman/kriscode，建了正确 .gitignore 保护 .env | 踩坑：原 .gitignore 文件名带空格形同虚设；待重置泄露的 key |
+| 2026-06-09 | 🏁 阶段 3 完成 ⭐：实现完整 ReAct 循环，agent 能自主读文件回答 | 高光：agent review 了自己的源码、揪出重复return；踩坑：Choices[0]越界、tool_call_id校验、历史污染 |
 | | | |
 
 > 每次学习结束后在此追加一行，并更新对应阶段的任务勾选。
