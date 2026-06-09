@@ -152,7 +152,8 @@ agent 会自己思考 → 调用工具列目录、读文件 → 观察结果 →
 - [x] 4.4 用 map 做工具注册表，主循环查表统一 `tool.Execute()`（2026-06-09，学 map、`tool,ok` 双返回判断未知工具、continue）
 - [x] 4.5 工具清单从注册表 `buildToolList` 自动生成拼进 prompt（2026-06-09，踩坑：const 不能放函数调用/作用域顺序；🎉 多工具复合任务跑通：list_dir→read_file→回答）
 - [x] 4.6 新增 `write_file` 工具，`os.WriteFile`（2026-06-09，学 SplitN 拆多参数、Description=与模型的契约；踩坑：多行参数被parseAction按行截断→约定\n压一行；转义打地鼠 \n\"\t→体会纯文本传参缺陷=阶段5动机；🎉 agent 写出真能 go run 的代码）
-- [ ] 4.7 新增 `run_command` 工具，`os/exec`（学：执行外部命令、捕获输出）
+- [x] 4.7 新增 `run_command` 工具，`os/exec`（2026-06-10，学 `exec.Command("bash","-c",input)`+`CombinedOutput`、命令出错也返回output当Observation；agent 实现写码→运行→改的完整闭环）
+- [x] 4.7b 健壮性补丁：区分"空工具名"(模型没按格式→打印原话break) 和"未知工具"(调了不存在的工具)（2026-06-10，修空转刷屏 bug）
 - [ ] 4.8 危险工具（write/run）执行前要用户 y/n 确认（学：安全边界，对照 Claude Code 权限机制）
 - [ ] 4.9 端到端：让 agent 完成"统计本项目代码行数并写入 stats.txt"
 - [ ] 4.10 重构练习：把单文件 main.go 拆成多个 .go 文件（同 package 内函数可直接互调，无需 import）。功能不变只改结构，改完验证行为一致——体验"安全重构"

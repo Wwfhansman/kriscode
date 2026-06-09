@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"os/exec"
 )
 
 const systemPrompt = `
@@ -38,8 +39,9 @@ func main() {
 		"read_file": ReadFileTool{},
 		"list_dir":  ListDirTool{},
 		"write_file": WriteFileTool{},
+		"run_command": RunCommandTool{},
 	}
-	fullPrompt := systemPrompt + "\n\n你只能使用以下工具：\n" + buildToolList(tools)
+	fullPrompt := systemPrompt + "\n\n你只能使用以下工具，并严格按照要求格式输出：\n" + buildToolList(tools)
 	messages := []Message{
 		{Role: "system", Content: fullPrompt},
 	}
@@ -69,11 +71,28 @@ func main() {
 				break //拿到最终答案就跳出循环
 			} else {
 				toolName, toolInput := parseAction(answer)
+				// 👇 新增：模型既没给 Final Answer，也没解析出有效 Action
+			if toolName == "" {
+    		// 说明模型没按格式来。把它的原话直接当作回复打印，结束这一轮
+    			fmt.Println(answer)
+    			break
+			}
+
 				tool, ok := tools[toolName] //查表找工具
 				if !ok {
 					messages = append(messages, Message{Role: "user", Content: "Observation:" + "未知工具：" + toolName})
 					fmt.Println("[未知工具]" + toolName+"\n")
 					continue //跳过本轮内循环，进入下一轮思考
+				}
+				if tool.IsDangerous() {
+					fmt.Printf("⚠️  即将执行危险操作 [%s]，参数：%s\n确认执行吗？(y/n): ", toolName, toolInput)
+					scanner.Scan()
+					confirm := scanner.Text()
+					if confirm != "y"{ //拒绝执行
+						messages = append(messages, Message{Role: "user", Content: "Observation: 用户拒绝了这次操作"})
+						fmt.Println("已取消")
+						continue
+					}
 				}
 				result, err := tool.Execute(toolInput)
 				if err != nil {
@@ -162,6 +181,7 @@ type Tool interface { //定义tool接口
 	Name() string
 	Description() string
 	Execute(input string) (string, error)
+	IsDangerous() bool
 }
 
 // 结构体定义
@@ -199,6 +219,7 @@ func (r ReadFileTool) Execute(input string) (string, error) {
 	}
 	return string(data), nil
 }
+func (r ReadFileTool) IsDangerous() bool { return false }
 
 // listdirtool工具
 type ListDirTool struct{}
@@ -220,6 +241,7 @@ func (r ListDirTool) Execute(input string) (string, error) {
 	}
 	return result, nil
 }
+func (r ListDirTool) IsDangerous() bool { return false }
 
 // write_file工具
 type  WriteFileTool struct{}
@@ -241,3 +263,26 @@ content = strings.ReplaceAll(content, "\\t", "\t")    // 还原 \t → Tab
 	os.WriteFile(parts[0],[]byte(content),0644)
 	return "已写入文件: " + parts[0], nil
 }
+func (r WriteFileTool) IsDangerous() bool { return true }
+
+// RunCommand工具
+type RunCommandTool struct{}
+
+func (r RunCommandTool) Name() string {
+	return "run_command"
+}
+func (r RunCommandTool) Description() string {
+	return "执行一条 shell 命令并返回输出。参数必须是完整的命令字符串，例如 go run hello.go" // 这段是给【模型】看的说明书
+}
+func (r RunCommandTool) Execute(input string) (string, error) {
+	cmd := exec.Command("bash","-c",input)
+	result,err := cmd.CombinedOutput()
+	if err != nil {
+		// 注意：命令执行失败（比如编译错误）也要把 output 返回给模型，
+		// 因为报错信息就在 output 里，模型需要看到它
+		return string(result) + "\n命令出错: " + err.Error(), nil
+	}
+	 
+	return string(result),nil
+}
+func (r RunCommandTool) IsDangerous() bool { return true }
