@@ -151,7 +151,7 @@ agent 会自己思考 → 调用工具列目录、读文件 → 观察结果 →
 - [x] 4.3 新增 `list_dir` 工具，用 `os.ReadDir`（2026-06-09，照模板填空，体会 interface 让加工具变机械）
 - [x] 4.4 用 map 做工具注册表，主循环查表统一 `tool.Execute()`（2026-06-09，学 map、`tool,ok` 双返回判断未知工具、continue）
 - [x] 4.5 工具清单从注册表 `buildToolList` 自动生成拼进 prompt（2026-06-09，踩坑：const 不能放函数调用/作用域顺序；🎉 多工具复合任务跑通：list_dir→read_file→回答）
-- [ ] 4.6 新增 `write_file` 工具，`os.WriteFile`（学：文件写入）
+- [x] 4.6 新增 `write_file` 工具，`os.WriteFile`（2026-06-09，学 SplitN 拆多参数、Description=与模型的契约；踩坑：多行参数被parseAction按行截断→约定\n压一行；转义打地鼠 \n\"\t→体会纯文本传参缺陷=阶段5动机；🎉 agent 写出真能 go run 的代码）
 - [ ] 4.7 新增 `run_command` 工具，`os/exec`（学：执行外部命令、捕获输出）
 - [ ] 4.8 危险工具（write/run）执行前要用户 y/n 确认（学：安全边界，对照 Claude Code 权限机制）
 - [ ] 4.9 端到端：让 agent 完成"统计本项目代码行数并写入 stats.txt"

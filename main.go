@@ -37,6 +37,7 @@ func main() {
 	tools := map[string]Tool{ //建立工具注册表
 		"read_file": ReadFileTool{},
 		"list_dir":  ListDirTool{},
+		"write_file": WriteFileTool{},
 	}
 	fullPrompt := systemPrompt + "\n\n你只能使用以下工具：\n" + buildToolList(tools)
 	messages := []Message{
@@ -218,4 +219,25 @@ func (r ListDirTool) Execute(input string) (string, error) {
 		result += entry.Name() + "\n"
 	}
 	return result, nil
+}
+
+// write_file工具
+type  WriteFileTool struct{}
+
+func (r  WriteFileTool) Name() string {
+	return "write_file"
+}
+func (r  WriteFileTool) Description() string {
+	return "写入内容到一个文件（会覆盖原内容）。参数格式强制要求为：路径|||内容，例如 notes.txt|||hello world；如果内容有多行，必须用 \n 表示换行，全部写在一行内。" // 这段是给【模型】看的说明书
+}
+func (r  WriteFileTool) Execute(input string) (string, error) {
+	parts :=strings.SplitN(input, "|||", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("参数格式错误，应为 路径|||内容")
+	}
+	content := strings.ReplaceAll(parts[1], "\\n", "\n")
+	content = strings.ReplaceAll(content, "\\\"", "\"")   // 还原 \" → "
+content = strings.ReplaceAll(content, "\\t", "\t")    // 还原 \t → Tab
+	os.WriteFile(parts[0],[]byte(content),0644)
+	return "已写入文件: " + parts[0], nil
 }
