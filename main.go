@@ -12,8 +12,8 @@ import (
 )
 
 const systemPrompt = `
-你是一个能使用工具的agent编程助手,名字叫kriscode。你可以使用以下工具：
-- read_file: 读取一个文件的内容。参数是文件路径。
+你是一个能使用工具的agent编程助手,名字叫kriscode。
+
 请你必须按照以下规则输出：
 在你需要使用工具时，严格按以下格式输出（不要输出别的）：
 Thought: <你的思考>
@@ -25,11 +25,24 @@ Thought: <你的思考>
 Final Answer: <你的最终答案>
 `
 
-func main() {
-
-	messages := []Message{
-		{Role: "system", Content: systemPrompt},
+func buildToolList(tools map[string]Tool) string {
+	list := ""
+	for _, tool := range tools { // 遍历 map 的每个工具
+		list += "- " + tool.Name() + ": " + tool.Description() + "\n"
 	}
+	return list
+}
+
+func main() {
+	tools := map[string]Tool{ //建立工具注册表
+		"read_file": ReadFileTool{},
+		"list_dir":  ListDirTool{},
+	}
+	fullPrompt := systemPrompt + "\n\n你只能使用以下工具：\n" + buildToolList(tools)
+	messages := []Message{
+		{Role: "system", Content: fullPrompt},
+	}
+
 	scanner := bufio.NewScanner(os.Stdin) //创建一个扫描器
 	for {
 		fmt.Print("输入：")
@@ -55,17 +68,18 @@ func main() {
 				break //拿到最终答案就跳出循环
 			} else {
 				toolName, toolInput := parseAction(answer)
-				if toolName == "read_file" {
-					result, err := readFile(toolInput)
-					if err != nil {
-						result = "读取文件出错：" + err.Error() //出错也要告诉模型
-					}
-					//读取成功
-					// 👇 把结果包成 Observation，append 回 messages
-					observation := "Observation:" + result
-					messages = append(messages, Message{Role: "user", Content: observation})
-					fmt.Println("【调用 read_file】" + toolInput)
+				tool, ok := tools[toolName] //查表找工具
+				if !ok {
+					messages = append(messages, Message{Role: "user", Content: "Observation:" + "未知工具：" + toolName})
+					fmt.Println("[未知工具]" + toolName+"\n")
+					continue //跳过本轮内循环，进入下一轮思考
 				}
+				result, err := tool.Execute(toolInput)
+				if err != nil {
+					result = "执行出错:" + err.Error()
+				}
+				messages = append(messages, Message{Role: "user", Content: "Observation:" + result})
+				fmt.Printf("[调用%s]%s\n", toolName, toolInput)
 			}
 		}
 	}
@@ -143,6 +157,12 @@ func readFile(path string) (string, error) {
 	return string(data), nil
 }
 
+type Tool interface { //定义tool接口
+	Name() string
+	Description() string
+	Execute(input string) (string, error)
+}
+
 // 结构体定义
 type Message struct {
 	Role    string `json:"role"`
@@ -160,4 +180,42 @@ type Choice struct {
 
 type ChatResponse struct {
 	Choices []Choice `json:"choices"`
+}
+
+// readfile工具
+type ReadFileTool struct{}
+
+func (r ReadFileTool) Name() string {
+	return "read_file"
+}
+func (r ReadFileTool) Description() string {
+	return "读取一个文件的内容。参数是文件路径。" // 这段是给【模型】看的说明书
+}
+func (r ReadFileTool) Execute(input string) (string, error) {
+	data, err := os.ReadFile(input)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// listdirtool工具
+type ListDirTool struct{}
+
+func (r ListDirTool) Name() string {
+	return "list_dir"
+}
+func (r ListDirTool) Description() string {
+	return "列出一个目录下的所有文件和子目录。参数是目录路径。" // 这段是给【模型】看的说明书
+}
+func (r ListDirTool) Execute(input string) (string, error) {
+	entries, err := os.ReadDir(input)
+	if err != nil {
+		return "", err
+	}
+	result := ""
+	for _, entry := range entries {
+		result += entry.Name() + "\n"
+	}
+	return result, nil
 }

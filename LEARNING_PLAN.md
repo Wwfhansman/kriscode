@@ -146,15 +146,16 @@ agent 会自己思考 → 调用工具列目录、读文件 → 观察结果 →
 
 **大目标**：用 interface 重构成可扩展工具系统，agent 会读、会写、会执行命令。
 
-- [ ] 4.1 定义 `Tool` interface（Name() / Description() / Execute(args)）（学：interface 是什么、为什么要它）
-- [ ] 4.2 把阶段 3 的 read_file 改写成实现了 Tool 接口的 struct（学：让类型实现接口）
-- [ ] 4.3 新增 `list_dir` 工具，用 `os.ReadDir`（学：目录读取、复制接口实现的套路）
-- [ ] 4.4 用 map 做工具注册表（名字 → Tool），主循环改为查表执行（学：map、解耦）
-- [ ] 4.5 system prompt 里的工具列表改为遍历注册表自动生成（学：让代码自描述、遍历 map）
+- [x] 4.1 定义 `Tool` interface（Name/Description/Execute）（2026-06-09，理解隐式实现：方法凑齐自动满足接口=鸭子类型）
+- [x] 4.2 把 read_file 改写成实现 Tool 接口的 struct（2026-06-09，学方法/接收者 `(r ReadFileTool)`，用 `var _ Tool = ...` 验证接口实现）
+- [x] 4.3 新增 `list_dir` 工具，用 `os.ReadDir`（2026-06-09，照模板填空，体会 interface 让加工具变机械）
+- [x] 4.4 用 map 做工具注册表，主循环查表统一 `tool.Execute()`（2026-06-09，学 map、`tool,ok` 双返回判断未知工具、continue）
+- [x] 4.5 工具清单从注册表 `buildToolList` 自动生成拼进 prompt（2026-06-09，踩坑：const 不能放函数调用/作用域顺序；🎉 多工具复合任务跑通：list_dir→read_file→回答）
 - [ ] 4.6 新增 `write_file` 工具，`os.WriteFile`（学：文件写入）
 - [ ] 4.7 新增 `run_command` 工具，`os/exec`（学：执行外部命令、捕获输出）
 - [ ] 4.8 危险工具（write/run）执行前要用户 y/n 确认（学：安全边界，对照 Claude Code 权限机制）
 - [ ] 4.9 端到端：让 agent 完成"统计本项目代码行数并写入 stats.txt"
+- [ ] 4.10 重构练习：把单文件 main.go 拆成多个 .go 文件（同 package 内函数可直接互调，无需 import）。功能不变只改结构，改完验证行为一致——体验"安全重构"
 
 **阶段验收**：新增工具只需一个 struct + 注册一行；能解释 interface 解决了什么问题。
 **Agent 原理收获**：工具三要素、工具描述就是 prompt engineering、危险操作的人类确认。
