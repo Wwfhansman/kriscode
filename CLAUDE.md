@@ -18,8 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
-go run main.go        # 运行 agent（交互式 REPL，输入 exit 退出）
-gofmt -w main.go      # 格式化（用户常忘，提醒他自己跑）
+go run ./code         # 运行 agent（交互式 REPL，输入 exit 退出）；多文件项目，不能只 run 单个文件
+gofmt -w ./code       # 格式化（用户常忘，提醒他自己跑）
 go vet ./...          # 静态检查（能抓坏 struct tag、不可达代码等）
 ```
 
@@ -27,7 +27,14 @@ go vet ./...          # 静态检查（能抓坏 struct tag、不可达代码等
 - 运行依赖环境变量 `DEEPSEEK_API_KEY`（配置在用户的 `~/.zshenv`；`.env` 文件仅作备份，程序不读它）
 - 无测试、无第三方依赖 —— 全部用标准库手写（这是刻意的教学选择，不要建议引入 SDK/框架）
 
-## 架构（当前全部在 main.go 单文件，约 290 行）
+## 架构（四个文件，按"一起变化的代码放一起"划分）
+
+| 文件 | 职责 |
+| --- | --- |
+| `code/main.go` | main() 双层循环（REPL + ReAct 循环） |
+| `code/llm.go` | 传输层：chat() + API 相关 struct（换模型供应商只动这里） |
+| `code/react.go` | 协议层：systemPrompt + parseAction()（改 ReAct 格式只动这里） |
+| `code/tools.go` | Tool 接口 + 4 个工具实现 + buildToolList() |
 
 这是一个手写的 ReAct agent，靠**纯文本约定**（非原生 function calling）驱动：
 
@@ -38,7 +45,7 @@ main() 双层循环：
     chat(messages) 调 DeepSeek API
       → 含 "Final Answer:" → 打印，break
       → parseAction() 解析出工具名/参数
-        → toolName 为空（模型没按格式）→ 打印原话，break
+        → toolName 为空（输出为空或没按格式）→ %q 打印原文，回灌纠正提示，continue 重试
         → 查 tools map 注册表 → 未知工具 → 回灌 Observation，continue
         → tool.IsDangerous() → 终端 y/n 确认，拒绝则回灌"用户拒绝"
         → tool.Execute() → 结果包成 "Observation: ..." 以 user 角色 append 回 messages
@@ -53,10 +60,10 @@ main() 双层循环：
 
 ## 当前进度（详见 LEARNING_PLAN.md）
 
-阶段 0-3 完成；阶段 4 完成至 4.8（四个工具 + 危险操作确认）。剩余：4.9 端到端测试、4.10 拆文件重构。阶段 5（原生 function calling、流式输出）未开始。
+阶段 0-4 全部完成（2026-06-12 收官：4.9 端到端验收 + 4.10 拆文件重构，阶段 4 总结已写入 Obsidian `工具系统与重构.md`）。下一步：阶段 5（原生 function calling、流式输出），尚未开始。
 
 ## 已知注意事项
 
 - 用户终端输入中文偶尔乱码/粘连，导致对话历史污染 —— 建议用户 exit 重开，不是代码 bug
-- `readFile` 函数（main.go 第 172 行附近）是阶段 3 的遗留，已被 ReadFileTool 取代，可在重构时删除
-
+- stdin 缓冲问题：API 调用期间提前输入的内容会被后续 Scan() 消费，可能穿透危险确认提示 —— 已向用户解释，暂不修，提示符出现前不要输入
+- 模型偶发返回空串或丢 `Final Answer:` 前缀 —— 主循环已有回灌重试机制兜底，属正常现象
